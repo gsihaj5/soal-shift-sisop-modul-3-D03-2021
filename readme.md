@@ -3,6 +3,7 @@
 # LAPORAN PENGERJAAN SOAL SHIFT
 
 # ============== NO 1 ===============
+Untuk soal 1 server.c masih terdapat beberapa error
 
 # ============== NO 2 ===============
 
