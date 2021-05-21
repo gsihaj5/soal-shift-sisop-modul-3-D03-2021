@@ -191,6 +191,93 @@ unsigned long int factorial(int num) {
 }
 ```
 
+## c.
+
+pada awal program yang dilakukan adalah create pipe nya terlebih dahulu
+```c
+   if (pipe(pipe_1) < 0)
+        exit(1);
+
+    if (pipe(pipe_2) < 0)
+        exit(1)
+```
+
+setelah itu melakukan fork untuk list
+```c
+pid_t child_id;
+    child_id = fork();
+    exit_on_failed_fork(child_id);
+    if (child_id == 0)
+        list_process();
+
+```
+list process mengambil list dari system kemudian memasukannya kedalam pipe 1.
+fungsi list process sebagai berikut
+
+```c
+void list_process() {
+    dup2(pipe_1[1], 1);
+
+    close(pipe_1[0]);
+    close(pipe_1[1]);
+
+    char *argv[] = {"ps", "aux", NULL};
+    execv("/bin/ps", argv);
+}
+```
+
+setelah itu melakukan fork lagi untuk sorting
+
+```c
+ pid_t child_id_2;
+    child_id_2 = fork();
+    exit_on_failed_fork(child_id_2);
+
+    if (child_id_2 == 0)
+        sort_process();
+
+```
+sorting dilakukan dengan mengambil input dari pipe 1 dan diteruskan ke pipe2 dengan fungsi
+```c
+void sort_process() {
+    dup2(pipe_1[0], 0);
+    dup2(pipe_2[1], 1);
+
+    close(pipe_1[0]);
+    close(pipe_1[1]);
+    close(pipe_2[0]);
+    close(pipe_2[1]);
+
+    char *argv[] = {"sort", "-nrk", "3,3", NULL};
+    execv("/usr/bin/sort", argv);
+}
+```
+
+setelah sorting melakukan fork untuk headprocess
+
+```c
+    pid_t child_id_3;
+    child_id_3 = fork();
+    exit_on_failed_fork(child_id_3);
+
+    if (child_id_3 == 0)
+        head_process();
+```
+head process dilakukan dengan mengambil input dari pipe 2 dan kemudian di outputkan dengan fungsi
+
+```c
+void head_process() {
+    dup2(pipe_2[0], 0);
+
+    close(pipe_2[0]);
+    close(pipe_2[1]);
+
+    char *argv[] = {"head", "-5", NULL};
+    execv("/usr/bin/head", argv);
+}
+
+```
+
 # ============== NO 3 ===============
 ## Soal 📘
 Seorang mahasiswa bernama Alex sedang mengalami masa gabut. Di saat masa gabutnya, ia memikirkan untuk merapikan sejumlah file yang ada di laptopnya. Karena jumlah filenya terlalu banyak, Alex meminta saran ke Ayub. Ayub menyarankan untuk membuat sebuah program C agar file-file dapat dikategorikan. Program ini akan memindahkan file sesuai ekstensinya ke dalam folder sesuai ekstensinya yang folder hasilnya terdapat di working directory ketika program kategori tersebut dijalankan.
