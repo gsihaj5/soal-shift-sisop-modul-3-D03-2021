@@ -87,6 +87,9 @@ void cross_mxa_with_mxb() {
     }
 }
 ```
+
+![run soal 2a](/soal2/soal2a.jpeg?raw=true)
+
 ## b.
 keseluruhan proses sebagai berikut 
 ```c
@@ -190,7 +193,9 @@ unsigned long int factorial(int num) {
     return result;
 }
 ```
-
+![run soal 2b input](/soal2/soal2binput.jpeg?raw=true)
+![run soal 2b proses](/soal2/soal2bprocess.jpeg?raw=true)
+![run soal 2b hasil](/soal2/soal2bhasil.jpeg?raw=true)
 ## c.
 
 pada awal program yang dilakukan adalah create pipe nya terlebih dahulu
@@ -277,6 +282,12 @@ void head_process() {
 }
 
 ```
+![run soal 2c](/soal2/soal2c.jpeg?raw=true)
+
+##kesulitan/masalah
+
+1. kebingungan mengalokasikan memory yang shared.
+2. kebingungan saat bind shared memory dengan array yang ada di dalam program
 
 # ============== NO 3 ===============
 ## Soal 📘
