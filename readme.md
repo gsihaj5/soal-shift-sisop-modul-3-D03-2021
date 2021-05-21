@@ -6,6 +6,89 @@
 Untuk soal 1 server.c masih terdapat beberapa error
 
 # ============== NO 2 ===============
+## Soal 📘
+Crypto (kamu) adalah teman Loba. Suatu pagi, Crypto melihat Loba yang sedang kewalahan mengerjakan tugas dari bosnya. Karena Crypto adalah orang yang sangat menyukai tantangan, dia ingin membantu Loba mengerjakan tugasnya. Detil dari tugas tersebut adalah:
+
+a. Membuat program perkalian matrix (4x3 dengan 3x6) dan menampilkan hasilnya. Matriks nantinya akan berisi angka 1-20 (tidak perlu dibuat filter angka).
+
+b. Membuat program dengan menggunakan matriks output dari program sebelumnya (program soal2a.c) (Catatan!: gunakan shared memory). Kemudian matriks tersebut akan dilakukan perhitungan dengan matrix baru (input user) sebagai berikut contoh perhitungan untuk matriks yang ada. Perhitungannya adalah setiap cel yang berasal dari matriks A menjadi angka untuk faktorial, lalu cel dari matriks B menjadi batas maksimal faktorialnya matri(dari paling besar ke paling kecil) (Catatan!: gunakan thread untuk perhitungan di setiap cel). 
+
+c. Karena takut lag dalam pengerjaannya membantu Loba, Crypto juga membuat program (soal2c.c) untuk mengecek 5 proses teratas apa saja yang memakan resource komputernya dengan command “ps aux | sort -nrk 3,3 | head -5” (Catatan!: Harus menggunakan IPC Pipes)
+
+## Cara Pengerjaan 📝
+
+## a.
+
+Keseluruhan proses sebagai berikut:
+```c
+int main() {
+    setupSharedMemory();
+    input_matrix_a();
+    input_matrix_b();
+    cross_mxa_with_mxb();
+    print_result();
+
+    shmdt(main_matrix);
+}
+```
+
+Hal pertama yang dilakukan adalah setup shared memory dengan fungsi 
+```c
+void setupSharedMemory() {
+    key_t key = 1111;
+    //size of 4 * 6 -> hasil dari perkalian matrix
+    int s_memory_id = shmget(key, sizeof(int[4][6]), 0666 | IPC_CREAT);
+
+    //attach matrix to shared memory
+    main_matrix = shmat(s_memory_id, (void *)0, 0);
+}
+```
+
+kemudian melakukan input dengan fungsi
+```c
+void input_matrix_a() {
+    int row, col;
+    for (row = 0; row < 4; row++) {
+        for (col = 0; col < 3; col++) {
+            scanf("%d", &matrix_a[row][col]);
+        }
+    }
+}
+
+void input_matrix_b() {
+    int row, col;
+    for (row = 0; row < 3; row++) {
+        for (col = 0; col < 6; col++) {
+            scanf("%d", &matrix_b[row][col]);
+        }
+    }
+}
+```
+
+Setelah input melakukan perkalian matrix dengan fungsi
+```c
+int rainbow_multiplication(int row, int col) {
+    int result = 0,
+        i;
+    for (i = 0; i < 3; i++) {
+        result += matrix_a[row][i] * matrix_b[i][col];
+    }
+
+    return result;
+}
+
+void cross_mxa_with_mxb() {
+    int row, col;
+    for (row = 0; row < 4; row++) {
+        for (col = 0; col < 6; col++) {
+            int rainbow_result = rainbow_multiplication(row, col);
+            main_matrix[row][col] = rainbow_result;
+        }
+    }
+}
+```
+
+
 
 # ============== NO 3 ===============
 ## Soal 📘
