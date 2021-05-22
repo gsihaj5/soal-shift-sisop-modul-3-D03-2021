@@ -10,20 +10,22 @@
 #include <netdb.h>
 #include <sys/types.h>
 #include <string.h>
-#define PORT 8080
 #define SIZE 100
 
-void log_(char command[], char file_name[], char id[], char password);
+void log_(char command[], char file_name[], char id[], char password[]);
 void get_directory(char directory[], char file_name[]);
 int check_IDPass(char id[], char password[]);
 char *strrev(char *str);
 int delete_tsv(char file_name[]);
-void register_account(int client_socket, char id[], char password[], int *loggedUser, int cliet_serving);
-void login_account(int client_socket, char id[], char password[], int *loggedUser, int cliet_socket_serving);
+void register_account(int client_socket, char id[], char password[], int *loggedUser, int client_serving);
+void login_account(int client_socket, char id[], char password[], int *loggedUser, int client_socket_serving);
 void add_command(int sender, int receiver, char id[], char password[]);
 void delete_command(int sender, int receiver, char id[], char password[]);
-void download_command(int senerd, int receiver);
-void send_file(int sockfd, char filePath[]);
+void download_command(int sender, int receiver);
+void send_file(int sockfd, char file_path[]);
+void write_file(int socket_client, char file_name[]);
+void see_command(int receiver);
+void find_command(int sender, int receiver);
 
 int main(int argc, char const *argv[]) {
 	int server_fd, new_socket, client_socket[30], max_clients = 30;
@@ -35,60 +37,58 @@ int main(int argc, char const *argv[]) {
 	char buffer[1024] = {0};
 	fd_set readfds;
 	int activity, activity1, activity2, activity3, activity4, activity_status;
-	
-	for(int i=0;i<max_clients;i++)
-		client_socket[i]=0;
-	
+		
 	if(access("akun.txt", F_OK) != 0) {
 		FILE *fp = fopen("akun.txt", "w+");
 		fclose(fp);
 	}
+	if(access("files.tsv", F_OK ) != 0 ) {
+		FILE *fp = fopen("files.tsv", "w+");
+		fclose(fp);
+	}
+	if(access("running.log", F_OK ) != 0 ) {
+		FILE *fp = fopen("running.log", "w+");
+		fclose(fp);
+	} 
 	
-	if((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-		perror("socket creation failed...");
+	if((server_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+		perror("socket creation failed...\n");
 		exit(EXIT_FAILURE);
 	}
 	
-	if(setsockopt(server_fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)) < 0) {
-		perror("setsockopt");
-		exit(EXIT_FAILURE);
-	}
 	else
 		printf("Socket successfully created..\n");
 	
 	address.sin_family = AF_INET;
 	address.sin_addr.s_addr = INADDR_ANY;
-	address.sin_port = htons(PORT);
+	address.sin_port = htons(8080);
 	
-	if(bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
-		perrer("bind failed...");
+	if(bind(server_fd, (struct sockaddr *)&address, sizeof(struct sockaddr_in)) != 0) {
+		perror("bind failed...\n");
 		exit(EXIT_FAILURE);
 	}
-	if(listen(server_fd, 3) < 0) {
-		perror("listen");
+	if(listen(server_fd, 5) != 0) {
+		perror("listen failed...\n");
 		exit(EXIT_FAILURE);
 	}
+	
+	for(int i=0;i<max_clients;i++) {
+        client_socket[i] = -1;
+    }
+    client_socket[0] = server_fd;
+	printf("\nServer is running....\n\n");
 	
 	int loggedUser = 0;
 	while(1) {
 		FD_ZERO(&readfds);
 		
-		FD_SET(server_fd, &readfds);
-		max_sd = server_fd;
-		
 		for(int i=0;i<max_clients;i++) {
-			sd = client_socket[i];
-			
-			if(sd > 0)
-				FD_SET(client_socket[i], &readfs);
-			if(sd > max_sd)
-				max_sd = sd;
+			if(client_socket[i]>=0)
+				FD_SET(client_socket[i], &readfds);
 		}
 		
-		activity = select(max_sd+1, &readfds, NULL, NULL, NULL);
+		activity = select(FD_SETSIZE, &readfds, NULL, NULL, NULL);
 		
-		if((activity<0) && (errno!=EINTR))
-			printf("select error...");
 		else if(activity>=0) {
 			if(FD_ISSET(server_fd, &readfds)) {
 				if(new_socket = accept(server_fd, (struct sockaddr*)&address, (socklen_t*)&address_length)>=0) {
@@ -105,14 +105,14 @@ int main(int argc, char const *argv[]) {
 					}
 				}
 				else {
-					perror("accept failed...");
+					perror("accept failed...\n");
 				}
 				activity--;
 				if(!activity)
 					continue;
 			}
 			
-			for(int i=1;i<max_client;i++) {
+			for(int i=1;i<max_clients;i++) {
 				if((client_socket[i] > 0) && (FD_ISSET(client_socket[i], &readfds))) {
 					activity2 = recv(client_socket[i], command, sizeof(command), 0);
 					printf("Client socket %d, index: %d\n", client_socket[i], i);
@@ -137,7 +137,7 @@ int main(int argc, char const *argv[]) {
 							client_serving++;
 						}
 						loggedUser = 0;
-						if(client_socket[client_serving]!-=1)
+						if(client_socket[client_serving]!=1)
 							activity_status = send(client_socket[client_serving], "serve", SIZE, 0);
 					}
 					if(activity2>0) {
@@ -151,26 +151,27 @@ int main(int argc, char const *argv[]) {
 						else {
 							if(loggedUser) {
 								printf("You are permitted to access these commands\n\n");
-								if(!strcmp(command,"add")){
+								if(!strcmp(command,"add"))
 									add_command(client_socket[i], client_socket[client_serving], id, password);
-								}
-								else if(!strcmp(command,"download")) {
-									download_commad(client_socket[i], client_socket[client_serving]);
-								}
-								else if(!strcmp(command,"delete")) {
-									delete_command(client_socket[i], client_socket[client_serving], id, password)
-								}
-								else {
-									 activity_status = send(client_socket[client_serving], "notlogin\n", SIZE, 0);
-									continue;
-								}
+								else if(!strcmp(command,"download"))
+									download_command(client_socket[i], client_socket[client_serving]);
+								else if(!strcmp(command,"delete"))
+									delete_command(client_socket[i], client_socket[client_serving], id, password);
+								else if(!strcmp(command,"see"))
+									see_command(client_socket[client_serving]);
+								else if(!strcmp(command,"find"))
+									find_command(client_socket[i], client_socket[client_serving]);
+							}
+							else {
+								activity_status = send(client_socket[client_serving], "notlogin\n", SIZE, 0);
+								continue;
 							}
 							
-							printf("Current user's ID: %s\n", id);
-							printf("Password: %s\n", password);
 						}
+						printf("Current user's ID: %s\n", id);
+						printf("Password: %s\n", password);
 						if (activity1 == -1 || activity2 == -1 || activity3 == -1) {
-							printf("receive() failed for client socket: %d [%s]\n", client_socket[i], strerror(errno));
+							printf("receive failed for client socket: %d\n", client_socket[i]);
 							break;
 						}
 					}
@@ -189,10 +190,10 @@ int main(int argc, char const *argv[]) {
 				close(client_socket[i]);
 	}
 	
-	return 0
+	return 0;
 }
 
-void log_(char command[], char file_name[], char id[], char password) {
+void log_(char command[], char file_name[], char id[], char password[]) {
 	printf("\n LOG...");
 	FILE *fp = fopen("running.log", "a");
 	if(!strcmp(command, "add")) {
@@ -215,7 +216,7 @@ void get_directory(char directory[], char file_name[]) {
             break;
         }
         file_name[i] = directory[length];
-        lenth--;
+        length--;
         i++;
     }
 }
@@ -240,6 +241,7 @@ int check_path(char file_name[]){
                 return 1;
     fclose(fp);
     return 0;
+	}
 }
 
 char *strrev(char *str)
@@ -265,8 +267,6 @@ int delete_tsv(char file_name[]) {
 	while(fgets(line, 256, tsv) != 0){
         if(sscanf(line, "%255[^\n]", temp) != 1)
 			break;
-        if(strstr(temp, filename) != 0)
-            int b;
 		else
             fprintf(tmp, "%s\n", temp);
     }
@@ -284,29 +284,31 @@ int delete_tsv(char file_name[]) {
     return 0;
 }
 
-void register_account(int client_socket, char id[], char password[], int *loggedUser, int cliet_socket_serving) {
-	int activity1 = recv(client_socket, id, sizeof(id), 0);
-	int activity2 = recv(client_socket, password, sizeof(password), 0);
+void register_account(int client_socket, char id[], char password[], int *loggedUser, int client_socket_serving) {
+	int activity1 = recv(client_socket, id, SIZE, 0);
+	int activity2 = recv(client_socket, password, SIZE, 0);
+	int activity_status;
 	if(check_IDPass(id, password))
-		int activity_status = send(client_socket_serving, "user found..\n", SIZE, 0);
+		activity_status = send(client_socket_serving, "user found..\n", SIZE, 0);
 	else {
 		*loggedUser = 1;
 		FILE *app = fopen("akun.txt", "a+");
 		fprintf(app, "%s:%s\n", id, password);
 		fclose(app);
-		int activity_status = send(client_socket_serving, "success..\n", SIZE, 0);
+		activity_status = send(client_socket_serving, "regloginsuccess..\n", SIZE, 0);
 	}
 }
 
 
-void login_account(int client_socket, char id[], char password[], int *loggedUser, int cliet_socket_serving) {
-	int activity1 = recv(client_socket, id, sizeof(id), 0);
-	int activity2 = recv(client_socket, password, sizeof(password), 0);
+void login_account(int client_socket, char id[], char password[], int *loggedUser, int client_socket_serving) {
+	int activity1 = recv(client_socket, id, SIZE, 0);
+	int activity2 = recv(client_socket, password, SIZE, 0);
+	int activity_status;
 	if(check_IDPass(id, password))
-		int activity_status = send(client_socket[client_serving], "wrong password!\n", SIZE, 0);
+		activity_status = send(client_socket_serving, "wrongpassword\n", SIZE, 0);
 	else {
 		*loggedUser=1;
-		int activity_status = send(client_socket[client_serving], "success\n", SIZE, 0);
+		activity_status = send(client_socket_serving, "regloginsuccess..\n", SIZE, 0);
 	}
 }
 
@@ -318,7 +320,7 @@ void add_command(int sender, int receiver, char id[], char password[]) {
 	printf("Publisher: %s\n", publisher);
 	printf("Tahun Publikasi: %s\n", tahun);
 	printf("Filepath: %s\n", file_path);
-	spritntf(directory, "%s", file_path);
+	sprintf(directory, "%s", file_path);
 	get_directory(directory, file_name);
 	strrev(file_name);
 	printf("File path: %s\n\n", file_path);
@@ -340,10 +342,10 @@ void delete_command(int sender, int receiver, char id[], char password[]) {
 	int activity1 = recv(sender, book, SIZE, 0);
 	char temp[SIZE] = "/home/bagas/Documents/modul3/server_/FILES/";
 	char temp1[120] = "/home/bagas/Documents/modul3/server_/FILES/old-";
+	int activity_status;
 	
-	printf("This book is going to be deleted: %s\n", book);
 	if(check_path(book)) {
-		int activity_status = send(receiver, "deleting book..\n", SIZE, 0);
+		activity_status = send(receiver, "deleting book..\n", SIZE, 0);
 		strcat(temp, book);
 		strcat(temp1, book);
 		
@@ -354,7 +356,7 @@ void delete_command(int sender, int receiver, char id[], char password[]) {
 		log_("delete", book, id, password);
 	}
 	else
-		int activity_status =  send(receiver, "File doesn't exist!\n", SIZE, 0);
+		activity_status =  send(receiver, "File doesn't exist!\n", SIZE, 0);
 }
 
 void download_command(int sender, int receiver){
@@ -362,13 +364,11 @@ void download_command(int sender, int receiver){
 	int line = 1;
 	int activity1 = recv(sender, book, SIZE, 0);
 	int activity_status;
-	printf("This book is going to be downloaded : %s\n", book);
 	if(check_path(book)){
 		activity_status = send(receiver, "downloading book..\n", SIZE, 0);
 		char temp[SIZE] = "/home/bagas/Documents/modul3/server_/FILES/";
 
 		strcat(temp, book);
-		printf("debug checking pat...\n%s\n", temp);
 		send_file(sender, temp);
 	} else {
 		activity_status = send(receiver, "File doesn't exist\n", SIZE, 0);
@@ -381,7 +381,7 @@ void send_file(int client_socket, char file_path[]){
 
     while(fgets(data, SIZE, fp) != NULL) {
         if (send(client_socket, data, SIZE, 0) == -1) {
-            perror("sending file errr..");
+            perror("sending file error..\n");
             exit(EXIT_FAILURE);
         }
         bzero(data, SIZE);
@@ -400,19 +400,109 @@ void write_file(int socket_client, char file_name[]){
     FILE *fp = fopen(path, "w");
     fclose(fp);
  
-    while (1) {
+    while(1) {
         n = recv(socket_client, buffer, SIZE, 0);
-        if (n <= 0){
+        if (n <= 0)
             break;
-            return;
-        }
         if(!strcmp(buffer, "done"))
-            return;
+            break;
         fp = fopen(path, "a");
         printf("... %s\n", buffer);
         fprintf(fp, "%s", buffer);
         bzero(buffer, SIZE);
         fclose(fp);
     }
-    return;
+	return;
+}
+
+void see_command(int receiver){
+	char *publisher, *tahun, *file_path, 
+			*file_name, *ekstensi;
+	char  line[512], directory[SIZE], temp[SIZE];
+	const char tab[2] = "\t";
+	int activity;
+
+	FILE *fp = fopen("files.tsv", "r");
+	activity = send(receiver, "not-done", SIZE, 0);
+
+	while(fgets(line, 512, fp)){
+		char *newline = strchr( line, '\n' ); //getrid god dang newline
+		if ( newline )
+			*newline = 0;
+
+		file_path = strtok(line, tab);
+		publisher = strtok(NULL, tab);
+		tahun = strtok(NULL, tab);
+
+		sprintf(directory, "%s", file_path);
+		get_directory(directory, temp);
+		strrev(temp);
+		file_name = strtok(temp, ".");
+		ekstensi = strtok(NULL, ".");
+
+		printf("Nama: %s\n", file_name);
+		printf("Publisher: %s\n", publisher);
+		printf("Tahun publishing: %s\n", tahun);
+		printf("Esktensi file: %s\n", ekstensi);
+		printf("FilePath: %s\n\n", file_path);
+
+		activity = send(receiver, file_name, SIZE, 0);
+		activity = send(receiver, publisher, SIZE, 0);
+		activity = send(receiver, tahun, SIZE, 0);
+		activity = send(receiver, ekstensi, SIZE, 0);
+		activity = send(receiver, file_path, SIZE, 0);
+	}
+	fclose(fp);
+	activity = send(receiver, "done", SIZE, 0);
+}
+
+void find_command(int sender, int receiver){
+	int activity, found = 0;
+    char *publisher, *tahun, *file_path, 
+			*file_name, *ekstensi;
+	char bookFind[SIZE], line[512], directory[SIZE], temp[SIZE];
+	const char tab[2] = "\t";
+
+    activity = recv(sender, bookFind, SIZE, 0);
+    printf("FILE TO FIND --- %s\n", bookFind);
+
+    FILE *fp = fopen("files.tsv", "r");
+    while(fgets(line, 512, fp)){
+        char *newline = strchr( line, '\n' ); //getrid god dang newline
+		if ( newline )
+			*newline = 0;
+		
+		file_path = strtok(line, tab);
+        if(strstr(file_path, bookFind) == 0)
+            continue;
+
+        found = 1;           
+		publisher = strtok(NULL, tab);
+		tahun = strtok(NULL, tab);
+
+		sprintf(directory, "%s", file_path);
+		get_directory(directory, temp);
+		strrev(temp);
+		file_name = strtok(temp, ".");
+		ekstensi = strtok(NULL, ".");
+
+		printf("Nama: %s\n", file_name);
+		printf("Publisher: %s\n", publisher);
+		printf("Tahun publishing: %s\n", tahun);
+		printf("Esktensi file: %s\n", ekstensi);
+		printf("FilePath: %s\n\n", file_path);
+
+		activity = send(receiver, file_name, SIZE, 0);
+		activity = send(receiver, publisher, SIZE, 0);
+		activity = send(receiver, tahun, SIZE, 0);
+		activity = send(receiver, ekstensi, SIZE, 0);
+		activity = send(receiver, file_path, SIZE, 0);
+    }
+
+    fclose(fp);
+	activity = send(receiver, "done", SIZE, 0);
+    if(!found)
+        activity = send(receiver, "couldn't find file", SIZE, 0);
+    else
+        activity = send(receiver, "file found", SIZE, 0);
 }
