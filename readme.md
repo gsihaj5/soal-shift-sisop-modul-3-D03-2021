@@ -398,6 +398,6 @@ kode lengkap implementasi pengerjaan [soal3.c](https://github.com/gsihaj5/soal-s
 
 ## Setelah Revisi
 * Kegiatan pada soal 3a(pemindahan file ke dalam folder dengan judul ekstensi) bisa dilakukan
-
+![nomer1revisi](https://github.com/widigdacahya/gif/blob/main/ezgif.com-gif-maker.gif?raw=true)
 
 
