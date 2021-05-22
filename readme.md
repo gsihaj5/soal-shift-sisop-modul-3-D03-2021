@@ -3,8 +3,155 @@
 # LAPORAN PENGERJAAN SOAL SHIFT
 
 # ============== NO 1 ===============
-Untuk soal 1 server.c masih terdapat beberapa error
+Keverk adalah orang yang cukup ambisius dan terkenal di angkatannya. Sebelum dia menjadi ketua departemen di HMTC, dia pernah mengerjakan suatu proyek dimana keverk tersebut meminta untuk membuat server database buku. Proyek ini diminta agar dapat digunakan oleh pemilik aplikasi dan diharapkan bantuannya dari pengguna aplikasi ini.
 
+## Soal a
+Pada soal a, server memberi pilihan register atau login pada client. Lalu server juga harus dapat menerima multiconnections.
+
+server.c
+```c
+void register_account(int client_socket, char id[], char password[], int *loggedUser, int client_socket_serving) {
+	int activity1 = recv(client_socket, id, SIZE, 0);
+	int activity2 = recv(client_socket, password, SIZE, 0);
+	int activity_status;
+	if(check_IDPass(id, password))
+		activity_status = send(client_socket_serving, "user found..\n", SIZE, 0);
+	else {
+		*loggedUser = 1;
+		FILE *app = fopen("akun.txt", "a+");
+		fprintf(app, "%s:%s\n", id, password);
+		fclose(app);
+		activity_status = send(client_socket_serving, "regloginsuccess..\n", SIZE, 0);
+	}
+}
+
+
+void login_account(int client_socket, char id[], char password[], int *loggedUser, int client_socket_serving) {
+	int activity1 = recv(client_socket, id, SIZE, 0);
+	int activity2 = recv(client_socket, password, SIZE, 0);
+	int activity_status;
+	if(check_IDPass(id, password))
+		activity_status = send(client_socket_serving, "wrongpassword\n", SIZE, 0);
+	else {
+		*loggedUser=1;
+		activity_status = send(client_socket_serving, "regloginsuccess..\n", SIZE, 0);
+	}
+}
+```
+```c
+	...
+	...
+	if((server_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+		perror("socket creation failed...\n");
+		exit(EXIT_FAILURE);
+	}
+	
+	else
+		printf("Socket successfully created..\n");
+	
+	address.sin_family = AF_INET;
+	address.sin_addr.s_addr = INADDR_ANY;
+	address.sin_port = htons(8080);
+	
+	if(bind(server_fd, (struct sockaddr *)&address, sizeof(struct sockaddr_in)) != 0) {
+		perror("bind failed...\n");
+		exit(EXIT_FAILURE);
+	}
+	if(listen(server_fd, 5) != 0) {
+		perror("listen failed...\n");
+		exit(EXIT_FAILURE);
+	}
+	
+	for(int i=0;i<max_clients;i++) {
+        client_socket[i] = -1;
+    }
+    client_socket[0] = server_fd;
+	printf("\nServer is running....\n\n");
+	
+	int loggedUser = 0;
+	while(1) {
+		FD_ZERO(&readfds);
+		
+		for(int i=0;i<max_clients;i++) {
+			if(client_socket[i]>=0)
+				FD_SET(client_socket[i], &readfds);
+		}
+		
+		activity = select(FD_SETSIZE, &readfds, NULL, NULL, NULL);
+		
+		else if(activity>=0) {
+			if(FD_ISSET(server_fd, &readfds)) {
+				if(new_socket = accept(server_fd, (struct sockaddr*)&address, (socklen_t*)&address_length)>=0) {
+					printf("New login try accepted:\n\n");
+					for(int i=0;i<max_clients;i++) {
+						if(client_socket[i]<0) {
+							client_socket[i] = new_socket;
+							if(i!=client_serving) 
+								activity1 = send(client_socket[i], "wait", SIZE, 0);
+							else
+								activity1 = send(client_socket[i], "serve", SIZE, 0);
+							break;
+						}
+					}
+				}
+				else {
+					perror("accept failed...\n");
+				}
+				activity--;
+				if(!activity)
+					continue;
+			}
+			
+			for(int i=1;i<max_clients;i++) {
+				if((client_socket[i] > 0) && (FD_ISSET(client_socket[i], &readfds))) {
+					activity2 = recv(client_socket[i], command, sizeof(command), 0);
+					printf("Client socket %d, index: %d\n", client_socket[i], i);
+					printf("Command: %s\n", command);
+					
+					if(activity1==0||activity2==0||activity3==0) {
+						printf("Current user's ID: %s\n", id);
+						printf("Password: %s\n", password);
+						printf("Client socket %d is closing..\n", client_socket[i]);
+						close(client_socket[i]);
+						client_socket[i] = -1;
+						
+						while(1) {
+							if(client_serving == 9) {
+								client_serving = 1;
+								break;
+							}
+							if(client_socket[client_serving+1]!=-1) {
+								client_serving++;
+								break;
+							}
+							client_serving++;
+						}
+						loggedUser = 0;
+						if(client_socket[client_serving]!=1)
+							activity_status = send(client_socket[client_serving], "serve", SIZE, 0);
+					}
+					if(activity2>0) {
+						if(!strcmp(command,"register")) {
+							register_account(client_socket[i], id, password, &loggedUser, client_socket[client_serving]);
+						}
+						else if(!strcmp(command,"login")) {
+							login_account(client_socket[i], id, password, &loggedUser, client_socket[client_serving]);
+						
+						}
+						...
+						...
+```
+client.c
+```c
+...
+...
+while(strcmp(message, "wait") == 0) {
+        printf("\e[31mServer is full!\e[0m\n");
+        activity = recv(server_fd, message, SIZE, 0);
+}
+...
+...    
+```
 # ============== NO 2 ===============
 ## Soal 📘
 Crypto (kamu) adalah teman Loba. Suatu pagi, Crypto melihat Loba yang sedang kewalahan mengerjakan tugas dari bosnya. Karena Crypto adalah orang yang sangat menyukai tantangan, dia ingin membantu Loba mengerjakan tugasnya. Detil dari tugas tersebut adalah:
