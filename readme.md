@@ -335,91 +335,69 @@ Catatan:
 Rencana pengerjaan untuk ketentuan -f adalah dengan mendapatkan nama file dan ekstensinya kemudian melakukan pemindahan file tersebut kesebuah folder, dimana untuk proses pemindahan ini akan meninjau keberadaan folder dengan nama ekstensi tersebut terlebih dahulu, jika belumum ada, maka diperlukan proses pembuatan folder terlebih dahulu
 
 ```c
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include <libgen.h>
-#include <sys/stat.h>
-#include <ctype.h>
+void *prosesF(void *temp) {
+    char *path;
+    path = (char *)temp;
+    
+    char *namaFile;
+    namaFile= basename(path); //lgens
 
-char *ekstensiFile(char *namaFile) {
-    
-    char *dot = strrchr(namaFile, '.');
-    
-    if(dot==namaFile || !dot) {
-        return "Unknown";
+    char cwd[1000];
+    getcwd(cwd,sizeof(cwd)); //unistd.h
+
+    char namaBaru[1000];
+    char ektensiFile[500];
+
+    strcpy(ektensiFile, getEkstensiFile(namaFile));
+    strcpy(ektensiFile, lowerCase(ektensiFile));
+
+    sprintf(namaBaru, "%s/%s", cwd, ektensiFile);
+    createDirIfNotExist(namaBaru);
+
+    sprintf(namaBaru, "%s/%s", namaBaru,namaFile);
+
+    int statusF = rename(path,namaBaru);
+    if(statusF==0) {
+        printf("Berhasil Dikategorikan\n");
+    } else {
+        printf("Sad, gagal :( \n");
     }
-    
-    return dot+1;
-}
 
-char *lowerCase(char *nameToLow) {
-    for(char *ch=nameToLow; *ch; ch++) {
-        *ch=tolower(*ch);
-    }
-    return nameToLow;
-}
 
-int main(int argc, char* argv[]) {
-
-    /*
-    pthread_t tf;
-                // un,un,fungsi,argumen fungsinya
-    if ( pthread_create(&tf,NULL,&fun1,NULL) != 0 ){
-        return 1;
-    }
-    
-    pthread_join(tf,NULL);
-    */
-
-   if(strcmp (argv[1], "-f")==0 ) {
-       //char *outputFile = basename(argv[0]);
-        int pos;
-        for(pos=2; pos<argc; pos++) {
-            
-            char *dirPath;
-            dirPath = (char*) argv[pos];
-
-            char *fileOperasi;
-            fileOperasi=basename(dirPath);
-
-            char ekstensiFileOperasi[25];
-            strcpy(ekstensiFileOperasi, ekstensiFile(fileOperasi));
-            strcpy(ekstensiFileOperasi, lowerCase(ekstensiFileOperasi));
-
-            char newFileOperasi[1000];
-            char currLoc[1000];
-            getcwd(currLoc,sizeof(currLoc));
-            sprintf(newFileOperasi, "%s/%s", currLoc, fileOperasi );
-
-            //membuat file
-            struct stat dirStat = {0};
-
-            if(stat(newFileOperasi,&dirStat)==-1) {
-                mkdir(newFileOperasi, 0777);
-            }
-
-            sprintf(newFileOperasi, "%s/%s", newFileOperasi, fileOperasi);
-
-            int ket = rename(dirPath, newFileOperasi);
-            if(ket != 0) {
-                printf("Sad, gagal :( \n");
-            } else {
-                printf("Berhasil Dikategorikan\n");
-            }
-        }
-   }
-    
-    return 0;
 }
 
 ```
+
+untuk pembuatan folder ketika belum ada
+```c
+void createDirIfNotExist(char *dir) {
+	struct stat st = {0};
+
+	if (stat(dir, &st) == -1) {
+			mkdir(dir, 0777);
+	}
+}
+```
+
+untuk mendapatkan ekstensi file
+```c
+char *getEkstensiFile(char *filename) {
+    char *dot = strrchr(filename, '.'); //last occurance char
+		// If dot is NULL or dot doesn't exist
+    if(!dot || dot == filename) return "Unknown";
+    return dot + 1;
+}
+```
+
 kode lengkap implementasi pengerjaan [soal3.c](https://github.com/gsihaj5/soal-shift-sisop-modul-3-D03-2021/blob/master/soal3/soal3.c)
 
 ## Kendala 🕳
 * Masih belum berhasil menerapkan rencana pengerjaan untuk soal 3a
 * belum dapat mengerjakan soal 3b,c,d,e
 <img src="https://github.com/widigdacahya/gif/blob/main/belumbisa.PNG" width="700">
+
+## Setelah Revisi
+* Kegiatan pada soal 3a(pemindahan file ke dalam folder dengan judul ekstensi) bisa dilakukan
+
 
 
