@@ -5,7 +5,7 @@
 # ============== NO 1 ===============
 Keverk adalah orang yang cukup ambisius dan terkenal di angkatannya. Sebelum dia menjadi ketua departemen di HMTC, dia pernah mengerjakan suatu proyek dimana keverk tersebut meminta untuk membuat server database buku. Proyek ini diminta agar dapat digunakan oleh pemilik aplikasi dan diharapkan bantuannya dari pengguna aplikasi ini.
 
-## Soal a
+## soal a
 Pada soal a, server memberi pilihan register atau login pada client. Lalu server juga harus dapat menerima multiconnections.
 
 server.c
@@ -145,6 +145,35 @@ client.c
 ```c
 ...
 ...
+    int command_flag = 0;
+    while(1)
+    {
+        // sign up user
+        while(!command_flag) {
+            printf("\e[32mInsert Command (Register/Login)\n>\e[0m ");
+            scanf("%s", command);
+            int b=0;
+            for(b=0;b<strlen(command);b++){
+                command[b] = tolower(command[b]);
+            }
+            activity = send(server_fd, command, SIZE, 0);
+            if(!strcmp(command, "register") || !strcmp(command, "login"))
+                if(registerLogin(server_fd, command))
+                    command_flag = 1;
+            else {
+                activity = recv(server_fd, message, SIZE, 0);
+                if(!strcmp(message, "notlogin\n"))
+                    printf("you need to login or register first!\n");
+                else
+                    command_flag = 1;
+            }
+        }
+...
+...
+```
+```c
+...
+...
 while(strcmp(message, "wait") == 0) {
         printf("\e[31mServer is full!\e[0m\n");
         activity = recv(server_fd, message, SIZE, 0);
@@ -152,6 +181,470 @@ while(strcmp(message, "wait") == 0) {
 ...
 ...    
 ```
+
+## soal b
+Pada soal b sistem dapat membuat database yang bernama files.tsv yang berisi path file saat berada di server, publisher, dan tahun publikasi. Setiap penambahan dan penghapusan file pada folder file yang bernama FILES pada server akan memengaruhi isi dari files.tsv. Folder FILES otomatis dibuat saat server dijalankan.
+
+server.c
+```c
+...
+...
+if(access("files.tsv", F_OK ) != 0 ) {
+	FILE *fp = fopen("files.tsv", "w+");
+	fclose(fp);
+}
+...
+...
+```
+
+#soal c, d, e, f, dan g
+Pada soal-soal ini client dapat menambah file baru ke dalam server dengan command add, mendownload file dari server dengan command download, menghapus file dengan command delete, melihat isi file.tsv dengan command see, dan melakukan pencarian suatu file dengan string tertentu dengan command find
+
+server.c
+```c
+...
+...
+void get_directory(char directory[], char file_name[]) {
+    int i = 0;
+	int length = strlen(directory)-1;
+    while(length){
+        directory[length+1] = '\0';
+        if(directory[length]=='/'){
+            break;
+        }
+        file_name[i] = directory[length];
+        length--;
+        i++;
+    }
+}
+
+int check_path(char file_name[]){
+    char temp[100];
+    FILE *fp = fopen("files.tsv", "r");
+	
+    while(fscanf(fp,"%s", temp) == 1){
+		if(strstr(temp, file_name)!=0)
+                return 1;
+    fclose(fp);
+    return 0;
+	}
+}
+
+char *strrev(char *str)
+{
+    char *p1, *p2;
+
+    if (! str || ! *str)
+        return str;
+    for (p1 = str, p2 = str + strlen(str) - 1; p2 > p1; ++p1, --p2)
+    {
+        *p1 ^= *p2;
+        *p2 ^= *p1;
+        *p1 ^= *p2;
+    }
+    return str;
+}
+
+int delete_tsv(char file_name[]) {
+    FILE *tsv = fopen("files.tsv", "r+");
+    FILE *tmp = fopen("temp.tsv", "w+");
+    char temp[256], line[256];
+
+	while(fgets(line, 256, tsv) != 0){
+        if(sscanf(line, "%255[^\n]", temp) != 1)
+			break;
+		else
+            fprintf(tmp, "%s\n", temp);
+    }
+
+    while(fgets(line, 256, tsv) != 0){
+        if(sscanf(line, "%255[^\n]", temp) != 1)
+			break;
+        fprintf(tsv, "%s\n", temp);
+    }
+    remove("files.tsv");
+    rename("temp.tsv", "files.tsv");
+
+    fclose(tmp);
+    fclose(tsv);
+    return 0;
+}
+
+void add_command(int sender, int receiver, char id[], char password[]) {
+	char publisher[SIZE], tahun[SIZE], file_path[SIZE], directory[SIZE], file_name[20];
+	int activity1 = recv(sender, publisher, SIZE, 0);
+	int activity2 = recv(sender, tahun, SIZE, 0);
+	int activity3 = recv(sender, file_path, SIZE, 0);
+	printf("Publisher: %s\n", publisher);
+	printf("Tahun Publikasi: %s\n", tahun);
+	printf("Filepath: %s\n", file_path);
+	sprintf(directory, "%s", file_path);
+	get_directory(directory, file_name);
+	strrev(file_name);
+	printf("File path: %s\n\n", file_path);
+	printf("File path directory: %s\n\n", directory);
+	printf("File name: %s\n\n", file_name);
+	
+	write_file(sender, file_name);
+	printf("terminating upload...\n");
+	
+	FILE *temp = fopen("files.tsv", "a+");
+	fprintf(temp, "%s\t%s\t%s\n", file_path, publisher, tahun);
+	fclose(temp);
+	
+	log_("add", file_name, id, password);
+}
+
+void delete_command(int sender, int receiver, char id[], char password[]) {
+	char book[SIZE];
+	int activity1 = recv(sender, book, SIZE, 0);
+	char temp[SIZE] = "/home/bagas/Documents/modul3/server_/FILES/";
+	char temp1[120] = "/home/bagas/Documents/modul3/server_/FILES/old-";
+	int activity_status;
+	
+	if(check_path(book)) {
+		activity_status = send(receiver, "deleting book..\n", SIZE, 0);
+		strcat(temp, book);
+		strcat(temp1, book);
+		
+		printf("debug checking old path...\n%s\n", temp);
+		printf("debug checking new path...\n%s\n", temp1);
+		rename(temp, temp1);
+		delete_tsv(book);
+		log_("delete", book, id, password);
+	}
+	else
+		activity_status =  send(receiver, "File doesn't exist!\n", SIZE, 0);
+}
+
+void download_command(int sender, int receiver){
+	char book[SIZE];
+	int line = 1;
+	int activity1 = recv(sender, book, SIZE, 0);
+	int activity_status;
+	if(check_path(book)){
+		activity_status = send(receiver, "downloading book..\n", SIZE, 0);
+		char temp[SIZE] = "/home/bagas/Documents/modul3/server_/FILES/";
+
+		strcat(temp, book);
+		send_file(sender, temp);
+	} else {
+		activity_status = send(receiver, "File doesn't exist\n", SIZE, 0);
+	}
+}
+
+void send_file(int client_socket, char file_path[]){
+    char data[SIZE] = {0};
+    FILE *fp = fopen(file_path, "r");
+
+    while(fgets(data, SIZE, fp) != NULL) {
+        if (send(client_socket, data, SIZE, 0) == -1) {
+            perror("sending file error..\n");
+            exit(EXIT_FAILURE);
+        }
+        bzero(data, SIZE);
+    }
+    fclose(fp);
+    int activity1 = send(client_socket, "done", SIZE, 0);
+}
+
+void write_file(int socket_client, char file_name[]){
+    int n;
+    char path[100] = "/home/bagas/Documents/modul3/server_/FILES/";
+    char buffer[SIZE];
+
+    strcat(path, file_name);
+    printf ("... %s\n", path);
+    FILE *fp = fopen(path, "w");
+    fclose(fp);
+ 
+    while(1) {
+        n = recv(socket_client, buffer, SIZE, 0);
+        if (n <= 0)
+            break;
+        if(!strcmp(buffer, "done"))
+            break;
+        fp = fopen(path, "a");
+        printf("... %s\n", buffer);
+        fprintf(fp, "%s", buffer);
+        bzero(buffer, SIZE);
+        fclose(fp);
+    }
+	return;
+}
+
+void see_command(int receiver){
+	char *publisher, *tahun, *file_path, 
+			*file_name, *ekstensi;
+	char  line[512], directory[SIZE], temp[SIZE];
+	const char tab[2] = "\t";
+	int activity;
+
+	FILE *fp = fopen("files.tsv", "r");
+	activity = send(receiver, "not-done", SIZE, 0);
+
+	while(fgets(line, 512, fp)){
+		char *newline = strchr( line, '\n' ); //getrid god dang newline
+		if ( newline )
+			*newline = 0;
+
+		file_path = strtok(line, tab);
+		publisher = strtok(NULL, tab);
+		tahun = strtok(NULL, tab);
+
+		sprintf(directory, "%s", file_path);
+		get_directory(directory, temp);
+		strrev(temp);
+		file_name = strtok(temp, ".");
+		ekstensi = strtok(NULL, ".");
+
+		printf("Nama: %s\n", file_name);
+		printf("Publisher: %s\n", publisher);
+		printf("Tahun publishing: %s\n", tahun);
+		printf("Esktensi file: %s\n", ekstensi);
+		printf("FilePath: %s\n\n", file_path);
+
+		activity = send(receiver, file_name, SIZE, 0);
+		activity = send(receiver, publisher, SIZE, 0);
+		activity = send(receiver, tahun, SIZE, 0);
+		activity = send(receiver, ekstensi, SIZE, 0);
+		activity = send(receiver, file_path, SIZE, 0);
+	}
+	fclose(fp);
+	activity = send(receiver, "done", SIZE, 0);
+}
+
+void find_command(int sender, int receiver){
+	int activity, found = 0;
+    char *publisher, *tahun, *file_path, 
+			*file_name, *ekstensi;
+	char bookFind[SIZE], line[512], directory[SIZE], temp[SIZE];
+	const char tab[2] = "\t";
+
+    activity = recv(sender, bookFind, SIZE, 0);
+    printf("FILE TO FIND --- %s\n", bookFind);
+
+    FILE *fp = fopen("files.tsv", "r");
+    while(fgets(line, 512, fp)){
+        char *newline = strchr( line, '\n' ); //getrid god dang newline
+		if ( newline )
+			*newline = 0;
+		
+		file_path = strtok(line, tab);
+        if(strstr(file_path, bookFind) == 0)
+            continue;
+
+        found = 1;           
+		publisher = strtok(NULL, tab);
+		tahun = strtok(NULL, tab);
+
+		sprintf(directory, "%s", file_path);
+		get_directory(directory, temp);
+		strrev(temp);
+		file_name = strtok(temp, ".");
+		ekstensi = strtok(NULL, ".");
+
+		printf("Nama: %s\n", file_name);
+		printf("Publisher: %s\n", publisher);
+		printf("Tahun publishing: %s\n", tahun);
+		printf("Esktensi file: %s\n", ekstensi);
+		printf("FilePath: %s\n\n", file_path);
+
+		activity = send(receiver, file_name, SIZE, 0);
+		activity = send(receiver, publisher, SIZE, 0);
+		activity = send(receiver, tahun, SIZE, 0);
+		activity = send(receiver, ekstensi, SIZE, 0);
+		activity = send(receiver, file_path, SIZE, 0);
+    }
+
+    fclose(fp);
+	activity = send(receiver, "done", SIZE, 0);
+    if(!found)
+        activity = send(receiver, "couldn't find file", SIZE, 0);
+    else
+        activity = send(receiver, "file found", SIZE, 0);
+}
+```
+client.c
+```c
+...
+...
+void send_file(int socket, char file_path[]){
+    int n;
+    char data[SIZE] = {0};
+    FILE *fp = fopen(file_path, "r");
+
+    while(fgets(data, SIZE, fp) != NULL) {
+        if (send(socket, data, sizeof(data), 0) == -1) {
+            perror("[-]Error in sending file.");
+            exit(1);
+        }
+        bzero(data, SIZE);
+    }
+
+    fclose(fp);
+    int activity = send(socket, "done", SIZE, 0);
+}
+
+void write_file(int client_socket, char fileName[]){
+    int n;
+    char buffer[SIZE];
+
+    FILE *fp = fopen(fileName, "w");
+    fclose(fp);
+
+    while (1) {
+        n = recv(client_socket, buffer, SIZE, 0);
+        if (n <= 0){
+            break;
+            return;
+        }
+        if(!strcmp(buffer, "done"))
+            return;
+        fp = fopen(fileName, "a");
+        fprintf(fp, "%s", buffer);
+        bzero(buffer, SIZE);
+        fclose(fp);
+    }
+    return;
+}
+
+void add_command(int client_socket){
+    int activity;
+    char publisher[SIZE], tahun[SIZE], file_path[SIZE];
+    
+    printf("Publisher: ");
+    scanf("%s", publisher);
+    activity = send(client_socket, publisher, SIZE, 0);
+
+    printf("Tahun Publikasi: ");
+    scanf("%s", tahun);
+    activity = send(client_socket, tahun, SIZE, 0);
+
+    printf("Filepath: ");
+    scanf("%s", file_path);
+    activity = send(client_socket, file_path, SIZE, 0);
+
+    send_file(client_socket, file_path);
+}
+
+void download_command(int client_socket){
+    int activity;
+    char book[SIZE], message[SIZE];
+
+    scanf("%s", book);
+    activity = send(client_socket, book, SIZE, 0);
+
+    activity = recv(client_socket, message, SIZE, 0);
+    puts(message);
+
+    if(!strcmp(message, "downloadin...\n"))
+        write_file(client_socket, book);
+}
+
+void delete_command(int client_socket){
+    int activity;
+    char book[SIZE], message[SIZE];
+
+    scanf("%s", book);
+    activity = send(client_socket, book, SIZE, 0);
+
+    activity = recv(client_socket, message, SIZE, 0);
+    puts(message);
+
+}
+
+void see_command(int client_socket){
+	int activity;
+    char temp[SIZE], flag[100];
+    int loop = 1;
+
+    activity = recv(client_socket, flag, SIZE, 0);
+    puts("");
+    while(loop){
+        activity = recv(client_socket, temp, SIZE, 0);
+        if(strstr(temp, "done") != NULL){
+            loop = 0;
+            break;
+        }
+        printf("Nama: %s\n", temp);
+
+        activity = recv(client_socket, temp, SIZE, 0);
+        printf("Publisher: %s\n", temp);
+
+        activity = recv(client_socket, temp, SIZE, 0);
+        printf("Tahun publishing: %s\n", temp);
+
+        activity = recv(client_socket, temp, SIZE, 0);
+        printf("Esktensi file: %s\n", temp);
+
+        activity = recv(client_socket, temp, SIZE, 0);
+        printf("File Path: %s\n\n", temp);
+	}
+}
+
+void find_command(int client_socket){
+    int activity;
+    char nameFile[SIZE], flag[100], temp[SIZE] ;
+    int loop = 1;
+    
+    scanf("%s", nameFile);
+    activity = send(client_socket, nameFile, SIZE, 0);
+    
+    while(loop){
+        activity = recv(client_socket, temp, SIZE, 0);
+        if(strstr(temp, "done") != NULL){
+            loop = 0;
+            break;
+        }
+        printf("Nama: %s\n", temp);
+
+        activity = recv(client_socket, temp, SIZE, 0);
+        printf("Publisher: %s\n", temp);
+
+        activity = recv(client_socket, temp, SIZE, 0);
+        printf("Tahun publishing: %s\n", temp);
+
+        activity = recv(client_socket, temp, SIZE, 0);
+        printf("Esktensi file: %s\n", temp);
+
+        activity = recv(client_socket, temp, SIZE, 0);
+        printf("File Path: %s\n\n", temp);
+
+    }
+
+    activity = recv(client_socket, flag, SIZE, 0);
+    if(!strcmp(flag, "file not found"))
+        printf("%s\n\n", flag);
+}
+...
+...
+```
+
+## soal h
+Pada soal h server dapat meyimpan semua history penambahan dan penghapusan file di running.log
+
+server.c
+```c
+...
+...
+void log_(char command[], char file_name[], char id[], char password[]) {
+	printf("\n LOG...");
+	FILE *fp = fopen("running.log", "a");
+	if(!strcmp(command, "add")) {
+		printf("Tambah: %s(%s:%s)\n\n", file_name, id, password);
+		fprintf(fp, "Tambah: %s(%s:%s)\n\n", file_name, id, password);
+	}
+	else if(!strcmp(command, "delete")) {
+		printf("Hapus: %s(%s:%s)\n\n", file_name, id, password);
+		fprintf(fp, "Hapus: %s(%s:%s)\n\n", file_name, id, password);
+	}
+	fclose(fp);
+}
+...
+...
+```
+
 # ============== NO 2 ===============
 ## Soal 📘
 Crypto (kamu) adalah teman Loba. Suatu pagi, Crypto melihat Loba yang sedang kewalahan mengerjakan tugas dari bosnya. Karena Crypto adalah orang yang sangat menyukai tantangan, dia ingin membantu Loba mengerjakan tugasnya. Detil dari tugas tersebut adalah:
