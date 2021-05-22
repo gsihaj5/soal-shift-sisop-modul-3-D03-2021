@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -7,7 +6,6 @@
 #include <unistd.h>
 #include <string.h>
 #include <ctype.h>
-#define PORT 8080
 #define SIZE 100
 
 int registerLogin(int server_fd, char command[]);
@@ -16,6 +14,8 @@ void write_file(int client_socket, char fileName[]);
 void add_command(int client_socket);
 void download_command(int client_socket);
 void delete_command(int client_socket);
+void see_command(int client_socket);
+void find_command(int client_socket);
 
 int main () {
     struct sockaddr_in address;
@@ -23,15 +23,14 @@ int main () {
     int server_fd, activity;
     char message[SIZE],  command[SIZE];
 
-    server_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP); 
-    if (server_fd == -1) {
+    if ((server_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) {
         fprintf(stderr, "socket failed [%s]\n", hstrerror(errno));
         return -1;
     }
     printf("Created a socket with: %d\n", server_fd);
 
     address.sin_family = AF_INET;         
-    address.sin_port = htons(PORT);     
+    address.sin_port = htons(8080);     
     local_host = gethostbyname("127.0.0.1");
     address.sin_addr = *((struct in_addr *)local_host->h_addr);
     activity = connect(server_fd, (struct sockaddr *)&address, sizeof(struct sockaddr_in));
@@ -82,7 +81,12 @@ int main () {
                 download_command(server_fd);
             } else if(!strcmp(command, "delete")){
                 delete_command(server_fd);
+            } else if(!strcmp(command, "see")){
+                see_command(server_fd);
+            } else if(!strcmp(command, "find")){
+                find_command(server_fd);
             }
+			
         }
 
         sleep(2);
@@ -145,7 +149,6 @@ void write_file(int client_socket, char fileName[]){
     int n;
     char buffer[SIZE];
 
-    printf ("... %s\n", fileName);
     FILE *fp = fopen(fileName, "w");
     fclose(fp);
 
@@ -158,7 +161,6 @@ void write_file(int client_socket, char fileName[]){
         if(!strcmp(buffer, "done"))
             return;
         fp = fopen(fileName, "a");
-        printf("... %s\n", buffer);
         fprintf(fp, "%s", buffer);
         bzero(buffer, SIZE);
         fclose(fp);
@@ -168,7 +170,7 @@ void write_file(int client_socket, char fileName[]){
 
 void add_command(int client_socket){
     int activity;
-    char publisher[SIZE], tahun[SIZE], filePath[SIZE];
+    char publisher[SIZE], tahun[SIZE], file_path[SIZE];
     
     printf("Publisher: ");
     scanf("%s", publisher);
@@ -179,10 +181,10 @@ void add_command(int client_socket){
     activity = send(client_socket, tahun, SIZE, 0);
 
     printf("Filepath: ");
-    scanf("%s", filePath);
-    activity = send(client_socket, filePath, SIZE, 0);
+    scanf("%s", file_path);
+    activity = send(client_socket, file_path, SIZE, 0);
 
-    send_file(client_socket, filePath);
+    send_file(client_socket, file_path);
 }
 
 void download_command(int client_socket){
@@ -209,4 +211,68 @@ void delete_command(int client_socket){
     activity = recv(client_socket, message, SIZE, 0);
     puts(message);
 
+}
+
+void see_command(int client_socket){
+	int activity;
+    char temp[SIZE], flag[100];
+    int loop = 1;
+
+    activity = recv(client_socket, flag, SIZE, 0);
+    puts("");
+    while(loop){
+        activity = recv(client_socket, temp, SIZE, 0);
+        if(strstr(temp, "done") != NULL){
+            loop = 0;
+            break;
+        }
+        printf("Nama: %s\n", temp);
+
+        activity = recv(client_socket, temp, SIZE, 0);
+        printf("Publisher: %s\n", temp);
+
+        activity = recv(client_socket, temp, SIZE, 0);
+        printf("Tahun publishing: %s\n", temp);
+
+        activity = recv(client_socket, temp, SIZE, 0);
+        printf("Esktensi file: %s\n", temp);
+
+        activity = recv(client_socket, temp, SIZE, 0);
+        printf("File Path: %s\n\n", temp);
+	}
+}
+
+void find_command(int client_socket){
+    int activity;
+    char nameFile[SIZE], flag[100], temp[SIZE] ;
+    int loop = 1;
+    
+    scanf("%s", nameFile);
+    activity = send(client_socket, nameFile, SIZE, 0);
+    
+    while(loop){
+        activity = recv(client_socket, temp, SIZE, 0);
+        if(strstr(temp, "done") != NULL){
+            loop = 0;
+            break;
+        }
+        printf("Nama: %s\n", temp);
+
+        activity = recv(client_socket, temp, SIZE, 0);
+        printf("Publisher: %s\n", temp);
+
+        activity = recv(client_socket, temp, SIZE, 0);
+        printf("Tahun publishing: %s\n", temp);
+
+        activity = recv(client_socket, temp, SIZE, 0);
+        printf("Esktensi file: %s\n", temp);
+
+        activity = recv(client_socket, temp, SIZE, 0);
+        printf("File Path: %s\n\n", temp);
+
+    }
+
+    activity = recv(client_socket, flag, SIZE, 0);
+    if(!strcmp(flag, "file not found"))
+        printf("%s\n\n", flag);
 }
